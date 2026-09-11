@@ -64,10 +64,11 @@ async function getMe() {
 
 // ─── Chat ────────────────────────────────────────────────────────────────
 
-async function sendMessageStream({ message, history, onDelta, signal }) {
-  const response = await fetch(`${API_BASE}/api/chat/stream`, {
+async function sendMessageStream({ message, history, sessionId, onDelta, signal }) {
+  const token = getToken();
+  const response = await fetch(`${API_BASE}/api/chat/stream${sessionId ? `?session_id=${sessionId}` : ""}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     body: JSON.stringify({ message, history }),
     signal,
   });
@@ -119,4 +120,44 @@ async function sendMessageStream({ message, history, onDelta, signal }) {
       }
     }
   }
+}
+
+// ─── Sessions ────────────────────────────────────────────────────────────
+
+async function listSessions() {
+  const token = getToken();
+  const response = await fetch(`${API_BASE}/api/sessions`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error("Erro ao listar sessoes.");
+  return response.json();
+}
+
+async function createSession() {
+  const token = getToken();
+  const response = await fetch(`${API_BASE}/api/sessions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: "{}",
+  });
+  if (!response.ok) throw new Error("Erro ao criar sessao.");
+  return response.json();
+}
+
+async function deleteSession(sessionId) {
+  const token = getToken();
+  const response = await fetch(`${API_BASE}/api/sessions/${sessionId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error("Erro ao excluir sessao.");
+}
+
+async function getSessionMessages(sessionId) {
+  const token = getToken();
+  const response = await fetch(`${API_BASE}/api/sessions/${sessionId}/messages`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error("Erro ao carregar mensagens.");
+  return response.json();
 }

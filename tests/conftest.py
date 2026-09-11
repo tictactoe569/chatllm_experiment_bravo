@@ -8,6 +8,9 @@ from sqlalchemy.pool import StaticPool
 
 from backend.database import Base, get_db
 from backend.main import app
+from backend.models import User
+from backend.routers.auth import get_current_user
+from backend.services.auth import hash_password
 
 
 @pytest.fixture(scope="session")

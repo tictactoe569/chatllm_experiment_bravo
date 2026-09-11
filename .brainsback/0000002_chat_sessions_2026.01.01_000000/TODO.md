@@ -5,14 +5,24 @@
 **Hard rule**: AI agents must not edit this file and must not draft paste-ready content for it.
 
 ## The Problem
-_State clearly what you are trying to achieve and the architectural constraints, avoiding implementation specifics of HOW to do it. Focus on WHAT and WHY._
+Implementar sessoes de chat e titulo automatico em uma barra lateral.
+
+Requisitos minimos:
+1. Usuario pode criar e alternar sessoes atraves de uma barra lateral (similar a ChatGPT e Gemini).
+2. Cada sessao guarda seu historico.
+3. Se a sessao ainda nao tiver titulo, o titulo deve ser definido automaticamente com base no contexto **possivel ja na primeira resposta do modelo**.
 
 ## Steps
-- [ ] _Decompose the problem into actionable logical steps._
-- [ ] _Each step should represent a verifiable piece of work._
+- [ ] Identifique como o HTML divide cada pedaço da página
+- [ ] Garanta que a implementação da barra lateral redimensione os outros componentes propriamente
+- [ ] De alguma forma deve haver um histórico de sessões
+- [ ] Título default deve ser um breve resumo de até 5 palavras do que a sessão se tratava
 
 ## Success Looks Like
-- [ ] _Define rigorous, observable criteria for success. E.g., The endpoint returns 200 OK with the user object, NOT Code compiles_
+- [ ] Barra lateral funcional, listando sessões anteriores e a atual do usuário
+- [ ] Novas sessões assumem o título default assim que o primeiro prompt for respondido
+- [ ] Cada usuário deve ter acesso somente às suas seções, nunca de outros usuários
+- [ ] Deve ser possível para o usuário alternar entre sessões através do histórico disponibilizado na barra lateral
 
 ## Notes
 - [ ] _Any specific edge cases, libraries to consider, or potential pitfalls._
