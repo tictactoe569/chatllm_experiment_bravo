@@ -1,22 +1,24 @@
-const { useEffect, useMemo, useRef, useState } = React;
+const { useEffect, useMemo, useRef, useState, useCallback } = React;
 
 function createMessageId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+const WELCOME_MESSAGE = {
+  id: createMessageId(),
+  role: "assistant",
+  content: "Bem-vindo ao ChatLLM Lab. Como posso ajudar voce hoje?",
+};
+
 function App() {
-  const [user, setUser] = useState(null);       // null = não autenticado
+  const [user, setUser] = useState(null);
   const [authReady, setAuthReady] = useState(false);
-  const [messages, setMessages] = useState([
-    {
-      id: createMessageId(),
-      role: "assistant",
-      content: "Bem-vindo ao ChatLLM Lab. Como posso ajudar voce hoje?",
-    },
-  ]);
+  const [messages, setMessages] = useState([WELCOME_MESSAGE]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [sessions, setSessions] = useState([]);
+  const [activeSessionId, setActiveSessionId] = useState(null);
   const messagesRef = useRef(null);
   const abortControllerRef = useRef(null);
 
@@ -29,8 +31,11 @@ function App() {
     }
     fetchUser()
       .then((u) => {
-        if (u) setUser(u);
-        else localStorage.removeItem("access_token");
+        if (u) {
+          setUser(u);
+          return listSessions().then(setSessions);
+        }
+        localStorage.removeItem("access_token");
       })
       .catch(() => localStorage.removeItem("access_token"))
       .finally(() => setAuthReady(true));
@@ -81,6 +86,7 @@ function App() {
       await sendMessageStream({
         message: cleaned,
         history: chatHistory,
+        sessionId: activeSessionId,
         signal: abortController.signal,
         onDelta: (delta) => {
           setMessages((prev) =>
@@ -92,6 +98,9 @@ function App() {
           );
         },
       });
+
+      // Recarregar sessoes para atualizar titulo automatico
+      listSessions().then(setSessions);
 
       setMessages((prev) =>
         prev.map((msg) =>
@@ -129,18 +138,59 @@ function App() {
   const handleLogout = async () => {
     try {
       await logoutUser();
-    } catch {
-      // Mesmo se o servidor falhar, limpamos o token local
-    }
+    } catch {}
     localStorage.removeItem("access_token");
     setUser(null);
-    setMessages([
-      {
-        id: createMessageId(),
-        role: "assistant",
-        content: "Bem-vindo ao ChatLLM Lab. Como posso ajudar voce hoje?",
-      },
-    ]);
+    setSessions([]);
+    setActiveSessionId(null);
+    setMessages([WELCOME_MESSAGE]);
+  };
+
+  const handleNewSession = async () => {
+    try {
+      const session = await createSession();
+      setSessions((prev) => [session, ...prev]);
+      setActiveSessionId(session.id);
+      setMessages([WELCOME_MESSAGE]);
+      setError("");
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleSelectSession = async (sessionId) => {
+    if (sessionId === activeSessionId) return;
+    setActiveSessionId(sessionId);
+    setError("");
+    try {
+      const msgs = await fetchSessionMessages(sessionId);
+      if (msgs.length === 0) {
+        setMessages([WELCOME_MESSAGE]);
+      } else {
+        setMessages(
+          msgs.map((m) => ({
+            id: createMessageId(),
+            role: m.role,
+            content: m.content,
+          }))
+        );
+      }
+    } catch {
+      setMessages([WELCOME_MESSAGE]);
+    }
+  };
+
+  const handleDeleteSession = async (sessionId) => {
+    try {
+      await deleteSession(sessionId);
+      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+      if (activeSessionId === sessionId) {
+        setActiveSessionId(null);
+        setMessages([WELCOME_MESSAGE]);
+      }
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   // ── Tela de carregamento inicial ──────────────────────────────────────────
@@ -154,43 +204,53 @@ function App() {
 
   // ── Tela de autenticação ──────────────────────────────────────────────────
   if (!user) {
-    return <Auth onAuthSuccess={() => fetchUser().then(setUser)} />;
+    return <Auth onAuthSuccess={() => fetchUser().then(setUser).then(() => listSessions().then(setSessions))} />;
   }
 
-  // ── Chat autenticado ──────────────────────────────────────────────────────
+  // ── Chat autenticado com sidebar ──────────────────────────────────────────
   return (
-    <main className="app-shell">
-      <header className="app-header">
-        <div className="brand">ChatLLM Lab</div>
-        <div className="header-right">
-          <span className="user-email">{user.email}</span>
-          <button className="logout-btn" onClick={handleLogout} type="button">
-            Sair
-          </button>
-        </div>
-      </header>
-
-      <section className="messages" aria-live="polite" ref={messagesRef}>
-        <div className="messages-inner">
-          {messages.map((msg) => (
-            <article key={msg.id} className={`bubble ${msg.role}`}>
-              <MessageContent content={msg.content} />
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <Composer
-        text={text}
-        busy={busy}
-        error={error}
-        onChangeText={setText}
-        onSubmit={onSubmit}
-        onStop={onStop}
+    <div className="app-layout">
+      <Sidebar
+        sessions={sessions}
+        activeSessionId={activeSessionId}
+        onSelectSession={handleSelectSession}
+        onNewSession={handleNewSession}
+        onDeleteSession={handleDeleteSession}
       />
 
-      <div className="warning-banner">Lembre-se, você precisa focar no experimento!!!</div>
-    </main>
+      <main className="app-shell">
+        <header className="app-header">
+          <div className="brand">ChatLLM Lab</div>
+          <div className="header-right">
+            <span className="user-email">{user.email}</span>
+            <button className="logout-btn" onClick={handleLogout} type="button">
+              Sair
+            </button>
+          </div>
+        </header>
+
+        <section className="messages" aria-live="polite" ref={messagesRef}>
+          <div className="messages-inner">
+            {messages.map((msg) => (
+              <article key={msg.id} className={`bubble ${msg.role}`}>
+                <MessageContent content={msg.content} />
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <Composer
+          text={text}
+          busy={busy}
+          error={error}
+          onChangeText={setText}
+          onSubmit={onSubmit}
+          onStop={onStop}
+        />
+
+        <div className="warning-banner">Lembre-se, você precisa focar no experimento!!!</div>
+      </main>
+    </div>
   );
 }
 

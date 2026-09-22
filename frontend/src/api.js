@@ -2,11 +2,11 @@ const API_BASE = window.location.origin;
 
 // ── Chat ────────────────────────────────────────────────────────────────────
 
-async function sendMessageStream({ message, history, onDelta, signal }) {
+async function sendMessageStream({ message, history, sessionId, onDelta, signal }) {
   const response = await fetch(`${API_BASE}/api/chat/stream`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, history }),
+    headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ message, history, session_id: sessionId }),
     signal,
   });
 
@@ -137,5 +137,44 @@ async function fetchUser() {
     headers: getAuthHeaders(),
   });
   if (!response.ok) return null;
+  return response.json();
+}
+
+// ── Sessions ────────────────────────────────────────────────────────────────
+
+async function listSessions() {
+  const response = await fetch(`${API_BASE}/api/sessions`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) return [];
+  return response.json();
+}
+
+async function createSession() {
+  const response = await fetch(`${API_BASE}/api/sessions`, {
+    method: "POST",
+    headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(extractError(data));
+  return data;
+}
+
+async function deleteSession(sessionId) {
+  const response = await fetch(`${API_BASE}/api/sessions/${sessionId}`, {
+    method: "DELETE",
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(extractError(data));
+  }
+}
+
+async function fetchSessionMessages(sessionId) {
+  const response = await fetch(`${API_BASE}/api/sessions/${sessionId}/messages`, {
+    headers: getAuthHeaders(),
+  });
+  if (!response.ok) return [];
   return response.json();
 }
