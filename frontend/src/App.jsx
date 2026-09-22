@@ -5,6 +5,8 @@ function createMessageId() {
 }
 
 function App() {
+  const [user, setUser] = useState(null);       // null = não autenticado
+  const [authReady, setAuthReady] = useState(false);
   const [messages, setMessages] = useState([
     {
       id: createMessageId(),
@@ -17,6 +19,22 @@ function App() {
   const [error, setError] = useState("");
   const messagesRef = useRef(null);
   const abortControllerRef = useRef(null);
+
+  // ── Verificar token salvo ao montar ──────────────────────────────────────
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (!token) {
+      setAuthReady(true);
+      return;
+    }
+    fetchUser()
+      .then((u) => {
+        if (u) setUser(u);
+        else localStorage.removeItem("access_token");
+      })
+      .catch(() => localStorage.removeItem("access_token"))
+      .finally(() => setAuthReady(true));
+  }, []);
 
   const chatHistory = useMemo(
     () => messages.filter((msg) => msg.role === "user" || msg.role === "assistant"),
@@ -108,10 +126,48 @@ function App() {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+    } catch {
+      // Mesmo se o servidor falhar, limpamos o token local
+    }
+    localStorage.removeItem("access_token");
+    setUser(null);
+    setMessages([
+      {
+        id: createMessageId(),
+        role: "assistant",
+        content: "Bem-vindo ao ChatLLM Lab. Como posso ajudar voce hoje?",
+      },
+    ]);
+  };
+
+  // ── Tela de carregamento inicial ──────────────────────────────────────────
+  if (!authReady) {
+    return (
+      <main className="app-shell">
+        <div className="auth-loading">Carregando...</div>
+      </main>
+    );
+  }
+
+  // ── Tela de autenticação ──────────────────────────────────────────────────
+  if (!user) {
+    return <Auth onAuthSuccess={() => fetchUser().then(setUser)} />;
+  }
+
+  // ── Chat autenticado ──────────────────────────────────────────────────────
   return (
     <main className="app-shell">
       <header className="app-header">
         <div className="brand">ChatLLM Lab</div>
+        <div className="header-right">
+          <span className="user-email">{user.email}</span>
+          <button className="logout-btn" onClick={handleLogout} type="button">
+            Sair
+          </button>
+        </div>
       </header>
 
       <section className="messages" aria-live="polite" ref={messagesRef}>
