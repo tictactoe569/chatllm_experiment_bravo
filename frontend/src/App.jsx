@@ -5,6 +5,9 @@ function createMessageId() {
 }
 
 function App() {
+  const [token, setToken] = useState(() => localStorage.getItem("token"));
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(!!token);
   const [messages, setMessages] = useState([
     {
       id: createMessageId(),
@@ -17,6 +20,24 @@ function App() {
   const [error, setError] = useState("");
   const messagesRef = useRef(null);
   const abortControllerRef = useRef(null);
+
+  // Validar token existente ao montar
+  useEffect(() => {
+    if (token) {
+      getMe(token)
+        .then((userData) => {
+          setUser(userData);
+        })
+        .catch(() => {
+          localStorage.removeItem("token");
+          setToken(null);
+          setUser(null);
+        })
+        .finally(() => setAuthLoading(false));
+    } else {
+      setAuthLoading(false);
+    }
+  }, []);
 
   const chatHistory = useMemo(
     () => messages.filter((msg) => msg.role === "user" || msg.role === "assistant"),
@@ -63,6 +84,7 @@ function App() {
       await sendMessageStream({
         message: cleaned,
         history: chatHistory,
+        token,
         signal: abortController.signal,
         onDelta: (delta) => {
           setMessages((prev) =>
@@ -108,10 +130,49 @@ function App() {
     }
   };
 
+  const handleAuth = (newToken) => {
+    setToken(newToken);
+    getMe(newToken).then((userData) => setUser(userData)).catch(() => {});
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    setToken(null);
+    setUser(null);
+    setMessages([
+      {
+        id: createMessageId(),
+        role: "assistant",
+        content: "Bem-vindo ao ChatLLM Lab. Como posso ajudar voce hoje?",
+      },
+    ]);
+  };
+
+  // Tela de loading enquanto valida token
+  if (authLoading) {
+    return (
+      <main className="app-shell">
+        <div className="auth-loading">Verificando autenticação...</div>
+      </main>
+    );
+  }
+
+  // Se não autenticado, mostra modal
+  if (!token) {
+    return <AuthModal onAuth={handleAuth} />;
+  }
+
+  // Autenticado — renderiza o chat
   return (
     <main className="app-shell">
       <header className="app-header">
         <div className="brand">ChatLLM Lab</div>
+        <div className="auth-info">
+          <span className="user-email">{user?.email}</span>
+          <button className="logout-btn" onClick={handleLogout} type="button">
+            Sair
+          </button>
+        </div>
       </header>
 
       <section className="messages" aria-live="polite" ref={messagesRef}>

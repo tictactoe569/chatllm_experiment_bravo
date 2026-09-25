@@ -6,8 +6,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from backend.auth_utils import hash_password
 from backend.database import Base, get_db
+from backend.dependencies import create_access_token, get_current_user
 from backend.main import app
+from backend.models import User
 
 
 @pytest.fixture(scope="session")
@@ -50,8 +53,58 @@ def db_session(engine, tables):
 
 
 @pytest.fixture
-def client(db_session):
-    """Retorna um TestClient do FastAPI com o banco de testes injetado."""
+def test_user(db_session):
+    """Cria um usuario de teste no banco e retorna o modelo."""
+    user = User(
+        email="teste@exemplo.com",
+        hashed_password=hash_password("senha123"),
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user
+
+
+@pytest.fixture
+def auth_token(test_user):
+    """Gera um token JWT valido para o usuario de teste."""
+    return create_access_token(test_user.id)
+
+
+@pytest.fixture
+def auth_headers(auth_token):
+    """Retorna headers de autorizacao com token JWT."""
+    return {"Authorization": f"Bearer {auth_token}"}
+
+
+@pytest.fixture
+def client(db_session, test_user):
+    """Retorna um TestClient do FastAPI com o banco de testes e auth injetados."""
+
+    def _override_get_db():
+        try:
+            yield db_session
+        finally:
+            pass
+
+    def _override_get_current_user():
+        return test_user
+
+    app.dependency_overrides[get_db] = _override_get_db
+    app.dependency_overrides[get_current_user] = _override_get_current_user
+
+    with TestClient(app) as test_client:
+        yield test_client
+
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def unauth_client(db_session):
+    """Retorna um TestClient do FastAPI SEM override do get_current_user.
+
+    Util para testar endpoints sem autenticacao.
+    """
 
     def _override_get_db():
         try:
