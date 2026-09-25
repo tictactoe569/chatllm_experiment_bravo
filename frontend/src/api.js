@@ -36,14 +36,47 @@ async function getMe(token) {
   return response.json();
 }
 
-async function sendMessageStream({ message, history, token, onDelta, signal }) {
+async function listSessions(token) {
+  const response = await fetch(`${API_BASE}/api/sessions`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error("Erro ao listar sessoes.");
+  return response.json();
+}
+
+async function createSession(token) {
+  const response = await fetch(`${API_BASE}/api/sessions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error("Erro ao criar sessao.");
+  return response.json();
+}
+
+async function deleteSession(token, sessionKey) {
+  const response = await fetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionKey)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error("Erro ao deletar sessao.");
+}
+
+async function getSessionMessages(token, sessionKey) {
+  const response = await fetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionKey)}/messages`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error("Erro ao carregar mensagens.");
+  return response.json();
+}
+
+async function sendMessageStream({ message, history, sessionKey, token, onDelta, signal }) {
   const response = await fetch(`${API_BASE}/api/chat/stream`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ message, history }),
+    body: JSON.stringify({ message, history, session_key: sessionKey || null }),
     signal,
   });
 
@@ -60,6 +93,7 @@ async function sendMessageStream({ message, history, token, onDelta, signal }) {
   const reader = response.body.getReader();
   const decoder = new TextDecoder("utf-8");
   let buffer = "";
+  let lastSessionKey = null;
 
   while (true) {
     const { value, done } = await reader.read();
@@ -89,9 +123,15 @@ async function sendMessageStream({ message, history, token, onDelta, signal }) {
         throw new Error(payload.error);
       }
 
+      if (payload.session_key) {
+        lastSessionKey = payload.session_key;
+      }
+
       if (payload.delta) {
-        onDelta(payload.delta);
+        onDelta(payload.delta, lastSessionKey);
       }
     }
   }
+
+  return lastSessionKey;
 }

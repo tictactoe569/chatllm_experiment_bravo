@@ -5,17 +5,22 @@
 **Hard rule**: AI agents must not edit this file and must not draft paste-ready content for it.
 
 ## The Problem
-_State clearly what you are trying to achieve and the architectural constraints, avoiding implementation specifics of HOW to do it. Focus on WHAT and WHY._
+Os usuários do ChatLLM não conseguem alternar entre sessões de chats, pois não há nenhum tipo de feature implementada pra isso. O objetivo é habilitar o usuário a criar novas sessões e alternar entre elas, através de uma barra lateral (similar ao ChatGPT e Gemini)
 
 ## Steps
-- [ ] _Decompose the problem into actionable logical steps._
-- [ ] _Each step should represent a verifiable piece of work._
+- [ ] Crie o botão de ocultar/mostrar a barra lateral
+- [ ] Crie o botão botão de criar uma nova sessão
+- [ ] Ao criar uma nova sessão, faça com que seu título sejam as primeiras 5 palavras da resposta do modelo
+- [ ] Ao clicar no título de uma sessão do histórico, o chat deverá alterar para a sessão escolhida
+- [ ] Criar novos testes unitários para validar os passos anteriores
 
 ## Success Looks Like
-- [ ] _Define rigorous, observable criteria for success. E.g., The endpoint returns 200 OK with the user object, NOT Code compiles_
-
-## Notes
-- [ ] _Any specific edge cases, libraries to consider, or potential pitfalls._
+- [ ] Todos os testes unitários anteriores devem ter sucesso 
+- [ ] Todos os novos testes unitários devem ter sucesso
+- [ ] O usuário deve ser capaz de clicar em uma nova sessão e alternar para ela
+- [ ] O usuário deve ser capaz de ocultar a barra de sessões
+- [ ] O usuário deve ser capaz de criar uma nova sessão
+- [ ] As sessões criadas devem estar associadas ao login e senha daquele usuário
 
 ---
 **⚠️ HUMAN ONLY**: This file is your strategic space. AI agents must not edit it.
